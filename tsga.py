@@ -29,7 +29,7 @@ class Experiment(nn.Module):
             self.model = CONV4(self.args.image_channels, self.args.num_filters, fc_in).to(self.device)
             if self.args.pretrain:
                 print('load pretrain weights...')
-                self.model.load_state_dict(torch.load('/data/lyl/code/simple_MAML/conv-4_pretrained_3.0.pth', map_location=self.device), strict=False)
+                self.model.load_state_dict(torch.load(self.args.pretrain_path, map_location=self.device), strict=False)
         else:
             print('Wrong backbone !')
             exit()
@@ -49,7 +49,7 @@ class Experiment(nn.Module):
             self.adapter = AdaptNet(self.args).to(self.device)
             print('adapter: {:.2f}'.format(sum(p.numel() for p in self.adapter.parameters())))
 
-        self.optimizer = optim.AdamW(self.parameters(), lr=self.args.outer_lr)
+        self.optimizer = getattr(optim, self.args.optimizer)(self.parameters(), lr=self.args.outer_lr, betas=(self.args.beta1, self.args.beta2))  # Adam (paper) or AdamW (upstream)
 
     def adaptation(self, s_x, s_y, q_x):
         params = None
@@ -155,7 +155,7 @@ class Experiment(nn.Module):
         save_statistics(list(test_summary.values()), filename='test_summary_statistics.csv')
 
 
-@hydra.main(config_path='conf/config.yaml', strict=True)
+@hydra.main(config_path='conf', config_name='config', version_base=None)
 @time_monitor
 def main(args):
     device = set_device(args.device)

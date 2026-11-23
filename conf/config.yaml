@@ -1,0 +1,40 @@
+# Hydra config reconstructed for this repo (upstream ships no conf/).
+# Values marked (guess) are NOT from the paper/authors -- verify before reporting results.
+dataset: CIFAR          # MIN | CIFAR | OMN
+folder: ${oc.env:TSGA_DATA,/scratch/${oc.env:USER}/tsga/data}   # hdf5 data root; fill it with scripts/download_datasets.py
+backbone: CONV4         # CONV4 | ResNet12 (ResNet12 files are missing upstream)
+anil: false
+pretrain: false
+pretrain_path: ""
+image_channels: 3
+image_height: 32        # 84 for MIN, 28 for OMN
+image_width: 32
+num_filters: 64
+n_support: 10           # one-class support size: 2 or 10 per the paper's table (user-reported); run both
+n_query: 20             # class-balanced query: n_query/2 normal + n_query/2 anomalous (size not in paper; 20 = 10 per class = n_support, guess)
+batch_size: 4           # tasks per meta-batch (paper, user-reported)
+n_inner_steps: 5        # SGD adaptation steps (paper, user-reported)
+inner_lr: 0.01          # initial value only (learned per step when mamlpp); not found in the paper (guess)
+weight_decay: 0.0005
+mamlpp: true            # learn per-step/per-param lr + wd
+loss: true              # learned inner loss (TSGA)
+adapter: true           # task-specific gradient adapter (TSGA)
+dim_feedforward_loss: 4       # loss-net hidden size 4 (paper Sec 3.3)
+dim_feedforward_adapter: 32   # (guess)
+num_layers_adapter: 1         # (guess)
+optimizer: Adam         # paper says Adam; upstream code used AdamW (default wd 0.01); compare with optimizer=AdamW
+outer_lr: 0.001         # (paper, user-reported)
+beta1: 0.9              # outer-optimizer Adam betas (paper, user-reported)
+beta2: 0.99
+num_epochs: 200         # 200 x 100 = 20000 iterations (paper, user-reported)
+n_train_episodes: 100   # outer steps per epoch = validate every 100 iterations (paper)
+n_val_episodes: 160     # 160 random meta-val tasks (paper, user-reported)
+n_test_episodes: 600    # 600 random test tasks (paper, user-reported)
+num_workers: 0
+device: 0
+seed: 0
+hydra:
+  job:
+    chdir: true
+  run:
+    dir: ${oc.env:TSGA_OUT,/scratch/${oc.env:USER}/tsga/outputs}/${dataset}/${now:%Y-%m-%d_%H-%M-%S}

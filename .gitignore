@@ -1,0 +1,7 @@
+# private project docs (kept out of the shared repo)
+MANIFEST.md
+AGENT.md
+
+__pycache__/
+*.pyc
+*.swp

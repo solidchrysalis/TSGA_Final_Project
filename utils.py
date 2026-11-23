@@ -5,14 +5,13 @@ import torch
 import time
 from datetime import datetime
 import csv
+import functools
 import sys
 from torch import nn, autograd
 import torch.nn.functional as F
 from torchvision import transforms
 from collections import OrderedDict
 from torchmeta.modules import MetaModule
-from torchmeta.datasets.helpers import omniglot, cifar_fs, fc100, miniimagenet
-from torchmeta.utils.data import BatchMetaDataLoader
 from data import create_miniimagenet_task_distribution, create_omniglot_allcharacters_task_distribution, create_cifarfs_task_distribution
 
 
@@ -120,110 +119,47 @@ def gradient_update_parameters_with_adapter(model, loss, adapter, params=None, s
     return updated_params
 
 
-class OCCData_v2:
-    def __init__(self, args):
-        if args.dataset == 'MIN':
-            self.train_dataloader = BatchMetaDataLoader(miniimagenet(
-                args.folder, shots=args.n_support, ways=args.n_query+1, shuffle=True, test_shots=args.n_query, meta_split='train', 
-                transform=transforms.Compose([
-                    transforms.RandomCrop(84, padding=8),
-                    transforms.RandomHorizontalFlip(),
-                    transforms.RandomApply([transforms.ColorJitter(0.4, 0.4, 0.4, 0.1)], p=0.8),
-                    transforms.ToTensor(),
-                    # transforms.Normalize((0.485, 0.456, 0.406), (0.229, 0.224, 0.225))
-                ])
-            ), batch_size=args.batch_size, shuffle=True, num_workers=args.num_workers)
-            self.val_dataloader = BatchMetaDataLoader(miniimagenet(
-                args.folder, shots=args.n_support, ways=args.n_query+1, shuffle=True, test_shots=args.n_query, meta_split='val', 
-            ), batch_size=1, shuffle=True, num_workers=args.num_workers)
-            self.val_dataloader = BatchMetaDataLoader(miniimagenet(
-                args.folder, shots=args.n_support, ways=args.n_query+1, shuffle=True, test_shots=args.n_query, meta_split='test', 
-            ), batch_size=1, shuffle=True, num_workers=args.num_workers)
-        elif args.dataset == 'CIFAR':
-            self.train_dataloader = BatchMetaDataLoader(cifar_fs(
-                args.folder, shots=args.n_support, ways=args.n_query+1, shuffle=True, test_shots=args.n_query, meta_split='train', 
-                transform=transforms.Compose([
-                    transforms.RandomCrop(32, padding=4),
-                    transforms.RandomHorizontalFlip(),
-                    transforms.RandomApply([transforms.ColorJitter(0.4, 0.4, 0.4, 0.1)], p=0.8),
-                    transforms.ToTensor(),
-                    # transforms.Normalize((0.485, 0.456, 0.406), (0.229, 0.224, 0.225))
-                ])
-            ), batch_size=args.batch_size, shuffle=True, num_workers=args.num_workers)
-            self.val_dataloader = BatchMetaDataLoader(cifar_fs(
-                args.folder, shots=args.n_support, ways=args.n_query+1, shuffle=True, test_shots=args.n_query, meta_split='val', 
-            ), batch_size=1, shuffle=True, num_workers=args.num_workers)
-            self.val_dataloader = BatchMetaDataLoader(cifar_fs(
-                args.folder, shots=args.n_support, ways=args.n_query+1, shuffle=True, test_shots=args.n_query, meta_split='test', 
-            ), batch_size=1, shuffle=True, num_workers=args.num_workers)
-        elif args.dataset == 'FC':
-            self.train_dataloader = BatchMetaDataLoader(fc100(
-                args.folder, shots=args.n_support, ways=args.n_query+1, shuffle=True, test_shots=args.n_query, meta_split='train', 
-                transform=transforms.Compose([
-                    transforms.RandomCrop(32, padding=4),
-                    transforms.RandomHorizontalFlip(),
-                    transforms.RandomApply([transforms.ColorJitter(0.4, 0.4, 0.4, 0.1)], p=0.8),
-                    transforms.ToTensor(),
-                    # transforms.Normalize((0.485, 0.456, 0.406), (0.229, 0.224, 0.225))
-                ])
-            ), batch_size=args.batch_size, shuffle=True, num_workers=args.num_workers)
-            self.val_dataloader = BatchMetaDataLoader(fc100(
-                args.folder, shots=args.n_support, ways=args.n_query+1, shuffle=True, test_shots=args.n_query, meta_split='val', 
-            ), batch_size=1, shuffle=True, num_workers=args.num_workers)
-            self.val_dataloader = BatchMetaDataLoader(fc100(
-                args.folder, shots=args.n_support, ways=args.n_query+1, shuffle=True, test_shots=args.n_query, meta_split='test', 
-            ), batch_size=1, shuffle=True, num_workers=args.num_workers)
-        elif args.dataset == 'OMN':
-            self.train_dataloader = BatchMetaDataLoader(omniglot(
-                args.folder, shots=args.n_support, ways=args.n_query+1, shuffle=True, test_shots=args.n_query, meta_split='train', 
-            ), batch_size=args.batch_size, shuffle=True, num_workers=args.num_workers)
-            self.val_dataloader = BatchMetaDataLoader(omniglot(
-                args.folder, shots=args.n_support, ways=args.n_query+1, shuffle=True, test_shots=args.n_query, meta_split='val', 
-            ), batch_size=1, shuffle=True, num_workers=args.num_workers)
-            self.val_dataloader = BatchMetaDataLoader(omniglot(
-                args.folder, shots=args.n_support, ways=args.n_query+1, shuffle=True, test_shots=args.n_query, meta_split='test', 
-            ), batch_size=1, shuffle=True, num_workers=args.num_workers)
-        else:
-            print('Wrong datasets !')
-            exit()
-
-
 class OCCData:
     def __init__(self, args):
 
         if args.dataset == 'MIN':
             self.metatrain_task_distribution, self.metaval_task_distribution, self.metatest_task_distribution = create_miniimagenet_task_distribution(
-                "/data/lyl/FS-OCC/miniimagenet/miniimagenet.pkl",
+                args.folder,
                 train_occ=True,
                 test_occ=True,
                 num_training_samples_per_class=args.n_support, 
                 num_test_samples_per_class=int(args.n_query / 2),
                 num_training_classes=2,
                 meta_batch_size=args.batch_size,
-                seq_length=0
+                seq_length=0,
+                image_size=args.image_height
             )
         elif args.dataset == 'CIFAR':
             self.metatrain_task_distribution, self.metaval_task_distribution, self.metatest_task_distribution = create_cifarfs_task_distribution(
-                "/data/lyl/FS-OCC/cifarfs/cifarfs.pkl",
+                args.folder,
                 train_occ=True,
                 test_occ=True,
                 num_training_samples_per_class=args.n_support, 
                 num_test_samples_per_class=int(args.n_query / 2),
                 num_training_classes=2,
                 meta_batch_size=args.batch_size,
-                seq_length=0
+                seq_length=0,
+                image_size=args.image_height
             )
         elif args.dataset == 'OMN':
             self.metatrain_task_distribution, self.metaval_task_distribution, self.metatest_task_distribution = create_omniglot_allcharacters_task_distribution(
-                "/data/lyl/FS-OCC/omniglot/omniglot.pkl",
+                args.folder,
                 train_occ=True,
                 test_occ=True,
                 num_training_samples_per_class=args.n_support,
                 num_test_samples_per_class=int(args.n_query / 2),
                 num_training_classes=2,
                 meta_batch_size=args.batch_size,
-                seq_length=0
+                seq_length=0,
+                image_size=args.image_height
             )
+        else:
+            raise ValueError('Wrong dataset: {} (use MIN, CIFAR or OMN)'.format(args.dataset))
 
     def get_episode(self, meta_batch):
         support_X, support_y, query_X, query_y = [], [], [], []
@@ -285,6 +221,7 @@ def format_runtime(seconds):
 
 
 def time_monitor(func):
+    @functools.wraps(func)  # keeps __module__ so Hydra resolves conf/ relative to tsga.py
     def wrapper(*args, **kwargs):
         tic = time.time()
         print("🚀 Program startup time: {}".format(datetime.now().strftime("%Y-%m-%d %H:%M:%S")))
@@ -367,7 +304,7 @@ class TransformerEncoderLayer(nn.Module):
             state['activation'] = F.relu
         super(TransformerEncoderLayer, self).__setstate__(state)
 
-    def forward(self, src, src_mask=None, src_key_padding_mask=None):
+    def forward(self, src, src_mask=None, src_key_padding_mask=None, is_causal=False):  # is_causal: ignored, passed by newer torch
         src2 = self.self_attn(src, src, src, attn_mask=src_mask, key_padding_mask=src_key_padding_mask)[0]
         src = src + self.dropout1(src2)
         src2 = self.linear2(self.dropout(self.activation(self.linear1(src))))
