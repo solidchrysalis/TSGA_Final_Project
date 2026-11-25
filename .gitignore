@@ -5,3 +5,7 @@ AGENT.md
 __pycache__/
 *.pyc
 *.swp
+
+# run logs (local/cluster bookkeeping, not shared)
+RUNLOG.md
+*.log
