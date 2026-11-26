@@ -35,6 +35,16 @@ sbatch -J fc100-k10 scripts/slurm/train.sbatch dataset=FC n_support=10    # on E
 
 Ablations: `loss=false` (no loss network), `adapter=false` (no adapter); `loss=false adapter=false mamlpp=false` is the OC-MAML baseline.
 
+**Pseudo-anomalies (our contribution):** `pseudo=cutpaste|shuffle|mix` (default `none`). The support set holds only normal
+images, so the inner-loop loss is one-class. With `pseudo` set, each support image also yields a synthetic anomaly
+(a colour-jittered pasted patch, or a 4x4 tile shuffle; see `pseudo.py`), labelled anomalous, and the inner loop adapts
+on that two-class set: plain cross-entropy for OC-MAML, learned loss on the normals plus cross-entropy for TSGA.
+Only the support set is used, so this is also valid at meta-test time. Sweep: `scripts/slurm/sweep_pseudo.txt`.
+
+**AUROC:** test results include AUROC (anomaly score = predicted probability of "anomalous"). To add it to older runs
+without retraining: `python evaluate.py <run_dir> ...` (or `sbatch scripts/slurm/eval.sbatch <run_dir> ...`), which writes
+`eval_summary_statistics.csv` in each run folder.
+
 Full sweep (TSGA vs OC-MAML on CIFAR-FS, FC100, CUB, K=2/10): `bash scripts/slurm/submit_sweep.sh scripts/slurm/sweep_datasets.txt` (re-run until all are submitted).
 
 ## Results

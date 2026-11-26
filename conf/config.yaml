@@ -19,6 +19,7 @@ weight_decay: 0.0005
 mamlpp: true            # learn per-step/per-param lr + wd
 loss: true              # learned inner loss (TSGA)
 adapter: true           # task-specific gradient adapter (TSGA)
+pseudo: none            # pseudo-anomalies in the inner loop (our contribution): none | cutpaste | shuffle | mix
 dim_feedforward_loss: 4       # loss-net hidden size 4 (paper Sec 3.3)
 dim_feedforward_adapter: 32   # (guess)
 num_layers_adapter: 1         # (guess)
