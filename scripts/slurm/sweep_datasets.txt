@@ -1,0 +1,13 @@
+# name | Hydra overrides   (one run per line; submitted in order by scripts/slurm/submit_sweep.sh)
+cifar-tsga-k10   | dataset=CIFAR n_support=10
+fc-tsga-k10      | dataset=FC n_support=10
+cub-tsga-k10     | dataset=CUB image_height=84 image_width=84 n_support=10
+fc-ocmaml-k10    | dataset=FC n_support=10 loss=false adapter=false mamlpp=false
+cub-ocmaml-k10   | dataset=CUB image_height=84 image_width=84 n_support=10 loss=false adapter=false mamlpp=false
+fc-tsga-k2       | dataset=FC n_support=2
+cub-tsga-k2      | dataset=CUB image_height=84 image_width=84 n_support=2
+fc-ocmaml-k2     | dataset=FC n_support=2 loss=false adapter=false mamlpp=false
+cub-ocmaml-k2    | dataset=CUB image_height=84 image_width=84 n_support=2 loss=false adapter=false mamlpp=false
+cifar-ocmaml-k10 | dataset=CIFAR n_support=10 loss=false adapter=false mamlpp=false
+cifar-tsga-k2    | dataset=CIFAR n_support=2
+cifar-ocmaml-k2  | dataset=CIFAR n_support=2 loss=false adapter=false mamlpp=false

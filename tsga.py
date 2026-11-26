@@ -143,13 +143,17 @@ class Experiment(nn.Module):
         self.load_state_dict(torch.load('best_model.pt'))
         test_acc, test_std, test_t = self.evaluate(self.args.n_test_episodes, self.data.get_test_episode)
         print('best epoch: {}, meta-val: {:.2f}% meta-test: {:.2f}% ± {:.2f} | {:.1f}s'.format(self.best_epoch, self.best_val_acc, test_acc, test_std, test_t))
-        
+        # the paper reports mean ± 95% confidence interval over n_test_episodes tasks
+        ci = lambda std: 1.96 * std / self.args.n_test_episodes ** 0.5  # one task per test episode
+        print('meta-test 95% CI: best {:.2f} ± {:.2f}, last {:.2f} ± {:.2f}'.format(test_acc, ci(test_std), last_acc, ci(last_std)))
+
         test_summary = {
             'params': '{:.2f}'.format(sum(p.numel() for p in self.model.parameters())), 
             'epoch': self.best_epoch, 
             'best_val': '{:.2f}'.format(self.best_val_acc), 
             'test_acc': '{:.2f}'.format(test_acc), 'test_std': '{:.2f}'.format(test_std), 
-            'last_acc': '{:.2f}'.format(last_acc), 'last_std': '{:.2f}'.format(last_std), 
+            'last_acc': '{:.2f}'.format(last_acc), 'last_std': '{:.2f}'.format(last_std),
+            'test_ci95': '{:.2f}'.format(ci(test_std)), 'last_ci95': '{:.2f}'.format(ci(last_std)),
         }
         save_statistics(list(test_summary.keys()), filename='test_summary_statistics.csv', create=True)
         save_statistics(list(test_summary.values()), filename='test_summary_statistics.csv')

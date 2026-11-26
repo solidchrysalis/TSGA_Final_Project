@@ -14,6 +14,7 @@ DATASETS = {
     'CIFAR': ('cifar100', 'cifarfs'),
     'FC': ('cifar100', 'fc100'),
     'OMN': ('omniglot', 'omn'),
+    'CUB': ('cub', 'cub'),       # extension: CUB-200-2011, torchmeta 100/50/50 class split (not in the paper)
 }
 
 
@@ -57,6 +58,17 @@ def load_split(root, dataset, split, image_size=None):
             for i, (grp, alphabet, character) in enumerate(labels):
                 a = f[grp][alphabet][character][()][..., None]   # [20,105,105] -> [20,105,105,1]
                 xs.append(a); ys.append(np.full(len(a), i))
+    elif kind == 'cub':
+        # torchmeta stores CUB as variable-size JPEG bytes; decode and resize each image here
+        import io
+        from PIL import Image
+        size = image_size or 84
+        labels = json.load(open(os.path.join(base, '{}_labels.json'.format(split))))
+        with h5py.File(os.path.join(base, '{}_data.hdf5'.format(split)), 'r') as f:
+            for i, c in enumerate(labels):
+                imgs = [np.asarray(Image.open(io.BytesIO(b.tobytes())).convert('RGB')
+                                   .resize((size, size), Image.BILINEAR)) for b in f['datasets'][c][()]]
+                xs.append(np.stack(imgs)); ys.append(np.full(len(imgs), i))
     else:
         raise ValueError(kind)
     X, y = np.concatenate(xs), np.concatenate(ys).astype(np.int64)

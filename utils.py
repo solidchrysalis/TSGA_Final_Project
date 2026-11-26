@@ -12,7 +12,7 @@ import torch.nn.functional as F
 from torchvision import transforms
 from collections import OrderedDict
 from torchmeta.modules import MetaModule
-from data import create_miniimagenet_task_distribution, create_omniglot_allcharacters_task_distribution, create_cifarfs_task_distribution
+from data import DATASETS, create_task_distributions
 
 
 class GradientDesent(nn.Module):
@@ -122,44 +122,20 @@ def gradient_update_parameters_with_adapter(model, loss, adapter, params=None, s
 class OCCData:
     def __init__(self, args):
 
-        if args.dataset == 'MIN':
-            self.metatrain_task_distribution, self.metaval_task_distribution, self.metatest_task_distribution = create_miniimagenet_task_distribution(
-                args.folder,
-                train_occ=True,
-                test_occ=True,
-                num_training_samples_per_class=args.n_support, 
-                num_test_samples_per_class=int(args.n_query / 2),
-                num_training_classes=2,
-                meta_batch_size=args.batch_size,
-                seq_length=0,
-                image_size=args.image_height
-            )
-        elif args.dataset == 'CIFAR':
-            self.metatrain_task_distribution, self.metaval_task_distribution, self.metatest_task_distribution = create_cifarfs_task_distribution(
-                args.folder,
-                train_occ=True,
-                test_occ=True,
-                num_training_samples_per_class=args.n_support, 
-                num_test_samples_per_class=int(args.n_query / 2),
-                num_training_classes=2,
-                meta_batch_size=args.batch_size,
-                seq_length=0,
-                image_size=args.image_height
-            )
-        elif args.dataset == 'OMN':
-            self.metatrain_task_distribution, self.metaval_task_distribution, self.metatest_task_distribution = create_omniglot_allcharacters_task_distribution(
-                args.folder,
-                train_occ=True,
-                test_occ=True,
-                num_training_samples_per_class=args.n_support,
-                num_test_samples_per_class=int(args.n_query / 2),
-                num_training_classes=2,
-                meta_batch_size=args.batch_size,
-                seq_length=0,
-                image_size=args.image_height
-            )
-        else:
-            raise ValueError('Wrong dataset: {} (use MIN, CIFAR or OMN)'.format(args.dataset))
+        if args.dataset not in DATASETS:
+            raise ValueError('Wrong dataset: {} (use one of {})'.format(args.dataset, list(DATASETS)))
+        self.metatrain_task_distribution, self.metaval_task_distribution, self.metatest_task_distribution = create_task_distributions(
+            args.folder,
+            args.dataset,
+            train_occ=True,
+            test_occ=True,
+            num_training_samples_per_class=args.n_support,
+            num_test_samples_per_class=int(args.n_query / 2),
+            num_training_classes=2,
+            meta_batch_size=args.batch_size,
+            seq_length=0,
+            image_size=args.image_height
+        )
 
     def get_episode(self, meta_batch):
         support_X, support_y, query_X, query_y = [], [], [], []
