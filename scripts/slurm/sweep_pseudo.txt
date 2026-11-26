@@ -1,0 +1,10 @@
+# name | Hydra overrides   Pseudo-anomaly contribution: TSGA and OC-MAML with pseudo=mix, on the two new datasets.
+# Compare against the pseudo=none runs in sweep_datasets.txt.
+fc-tsga-mix-k2      | dataset=FC n_support=2 pseudo=mix
+cub-tsga-mix-k2     | dataset=CUB image_height=84 image_width=84 n_support=2 pseudo=mix
+fc-ocmaml-mix-k2    | dataset=FC n_support=2 pseudo=mix loss=false adapter=false mamlpp=false
+cub-ocmaml-mix-k2   | dataset=CUB image_height=84 image_width=84 n_support=2 pseudo=mix loss=false adapter=false mamlpp=false
+fc-tsga-mix-k10     | dataset=FC n_support=10 pseudo=mix
+cub-tsga-mix-k10    | dataset=CUB image_height=84 image_width=84 n_support=10 pseudo=mix
+fc-ocmaml-mix-k10   | dataset=FC n_support=10 pseudo=mix loss=false adapter=false mamlpp=false
+cub-ocmaml-mix-k10  | dataset=CUB image_height=84 image_width=84 n_support=10 pseudo=mix loss=false adapter=false mamlpp=false

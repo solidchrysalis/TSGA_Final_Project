@@ -6,6 +6,7 @@ import hydra
 import time
 from collections import OrderedDict
 from utils import set_device, set_seed, time_monitor, save_statistics, OCCData, GradientDesent, LossNet, AdaptNet
+from pseudo import make_pseudo_anomalies, auroc
 
 
 class Experiment(nn.Module):
@@ -53,10 +54,19 @@ class Experiment(nn.Module):
 
     def adaptation(self, s_x, s_y, q_x):
         params = None
+        pseudo = self.args.get('pseudo', 'none')
+        n_normal = s_x.shape[0]
+        if pseudo != 'none':
+            # two-class support: K normals (label 0) + K pseudo-anomalies made from them (label 1)
+            with torch.no_grad():
+                s_x = torch.cat([s_x, make_pseudo_anomalies(s_x, pseudo)])
+            s_y = torch.cat([s_y, torch.ones_like(s_y)])
         for step in range(self.args.n_inner_steps):
             s_p, s_e = self.model(s_x, params=params)
             if self.args.loss:
-                inner_loss = self.loss(s_p)
+                inner_loss = self.loss(s_p[:n_normal])  # learned label-free loss on the real normals
+                if pseudo != 'none':
+                    inner_loss = inner_loss + F.cross_entropy(s_p, s_y)
             else:
                 inner_loss = F.cross_entropy(s_p, s_y)
             if self.args.adapter:
@@ -91,8 +101,9 @@ class Experiment(nn.Module):
         return accs.mean() * 100, accs.std() * 100, toc - tic
 
     def evaluate(self, n_tasks, get_episode):
+        """Returns accuracy mean/std, AUROC mean/std (all in %, over tasks) and wall time."""
         tic = time.time()
-        accs = []
+        accs, aucs = [], []
         for _ in range(n_tasks):
             support_X, support_y, query_X, query_y = get_episode()
             support_X, support_y, query_X, query_y = support_X.to(self.device), support_y.to(self.device), query_X.to(self.device), query_y.to(self.device)
@@ -102,21 +113,22 @@ class Experiment(nn.Module):
                 with torch.no_grad():
                     _, p = torch.max(preds, dim=-1)
                     accs.append(torch.mean(p.eq(q_y).float()))  # accuracy of a task
-        accs = torch.Tensor(accs)
+                    aucs.append(auroc(F.softmax(preds, dim=-1)[:, 1], q_y))  # anomaly score = p(anomalous)
+        accs, aucs = torch.Tensor(accs), torch.Tensor(aucs)
         toc = time.time()
-        return accs.mean() * 100, accs.std() * 100, toc - tic
+        return accs.mean() * 100, accs.std() * 100, aucs.mean() * 100, aucs.std() * 100, toc - tic
 
     def run(self):
         self.best_epoch = 0
         self.best_val_acc = 0
         self.create_summary_csv = True
 
-        val_acc, val_std, val_t = self.evaluate(self.args.n_val_episodes, self.data.get_val_episode)
+        val_acc, val_std, _, _, val_t = self.evaluate(self.args.n_val_episodes, self.data.get_val_episode)
         print('{:3d}, meta-val: {:.2f}% ± {:.2f} | {:.1f}s'.format(0, val_acc, val_std, val_t))
         # return
         for epoch in range(self.args.num_epochs):
             train_acc, train_std, train_t = self.train(self.args.n_train_episodes, self.data.get_train_episode)
-            val_acc, val_std, val_t = self.evaluate(self.args.n_val_episodes, self.data.get_val_episode)
+            val_acc, val_std, _, _, val_t = self.evaluate(self.args.n_val_episodes, self.data.get_val_episode)
             print('{:3d}, meta-train: {:.2f}% ± {:.2f} | {:.1f}s, meta-val: {:.2f}% ± {:.2f} | {:.1f}s'.format(
                 epoch + 1, train_acc, train_std, train_t, val_acc, val_std, val_t
             ))
@@ -137,15 +149,16 @@ class Experiment(nn.Module):
             save_statistics(list(epoch_summary.values()), filename='train_summary_statistics.csv')
 
         torch.save(self.state_dict(), 'last_model.pt')
-        last_acc, last_std, test_t = self.evaluate(self.args.n_test_episodes, self.data.get_test_episode)
+        last_acc, last_std, last_auc, last_auc_std, test_t = self.evaluate(self.args.n_test_episodes, self.data.get_test_episode)
         print('last epoch: {}, meta-val: {:.2f}% meta-test: {:.2f}% ± {:.2f} | {:.1f}s'.format(epoch + 1, val_acc, last_acc, last_std, test_t))
 
         self.load_state_dict(torch.load('best_model.pt'))
-        test_acc, test_std, test_t = self.evaluate(self.args.n_test_episodes, self.data.get_test_episode)
+        test_acc, test_std, test_auc, test_auc_std, test_t = self.evaluate(self.args.n_test_episodes, self.data.get_test_episode)
         print('best epoch: {}, meta-val: {:.2f}% meta-test: {:.2f}% ± {:.2f} | {:.1f}s'.format(self.best_epoch, self.best_val_acc, test_acc, test_std, test_t))
         # the paper reports mean ± 95% confidence interval over n_test_episodes tasks
         ci = lambda std: 1.96 * std / self.args.n_test_episodes ** 0.5  # one task per test episode
         print('meta-test 95% CI: best {:.2f} ± {:.2f}, last {:.2f} ± {:.2f}'.format(test_acc, ci(test_std), last_acc, ci(last_std)))
+        print('meta-test AUROC: best {:.2f} ± {:.2f}, last {:.2f} ± {:.2f}'.format(test_auc, ci(test_auc_std), last_auc, ci(last_auc_std)))
 
         test_summary = {
             'params': '{:.2f}'.format(sum(p.numel() for p in self.model.parameters())), 
@@ -154,6 +167,8 @@ class Experiment(nn.Module):
             'test_acc': '{:.2f}'.format(test_acc), 'test_std': '{:.2f}'.format(test_std), 
             'last_acc': '{:.2f}'.format(last_acc), 'last_std': '{:.2f}'.format(last_std),
             'test_ci95': '{:.2f}'.format(ci(test_std)), 'last_ci95': '{:.2f}'.format(ci(last_std)),
+            'test_auroc': '{:.2f}'.format(test_auc), 'test_auroc_ci95': '{:.2f}'.format(ci(test_auc_std)),
+            'last_auroc': '{:.2f}'.format(last_auc), 'last_auroc_ci95': '{:.2f}'.format(ci(last_auc_std)),
         }
         save_statistics(list(test_summary.keys()), filename='test_summary_statistics.csv', create=True)
         save_statistics(list(test_summary.values()), filename='test_summary_statistics.csv')
