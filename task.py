@@ -272,6 +272,7 @@ class OCCTask(ClassificationTask):
         all_test_normal_indices = np.random.choice(
             normal_class_indices[self.num_training_samples_per_class:],
             self.num_test_samples_per_class,
+            replace=False,  # non-overlapping query positives (supplement Sec 1)
         )
         self.train_indices.extend(all_train_indices)
         self.test_indices.extend(all_test_normal_indices)

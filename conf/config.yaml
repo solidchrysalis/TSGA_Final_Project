@@ -11,12 +11,14 @@ image_height: 32        # 84 for MIN, 28 for OMN
 image_width: 32
 num_filters: 64
 n_support: 10           # one-class support size: 2 or 10 per the paper's table (user-reported); run both
-n_query: 20             # class-balanced query: n_query/2 normal + n_query/2 anomalous (size not in paper; 20 = 10 per class = n_support, guess)
+n_query: 60             # total query size: 30 normal + 30 anomalous (supplement Sec 1, stated for meta-testing; also used for train/val)
 batch_size: 4           # tasks per meta-batch (paper, user-reported)
 n_inner_steps: 5        # SGD adaptation steps (paper, user-reported)
-inner_lr: 0.01          # initial value only (learned per step when mamlpp); not found in the paper (guess)
+inner_lr: 0.01          # initial value (learned per step when mamlpp); supplement Table 4 MIN 0.01 column matches the headline result
 weight_decay: 0.0005
 mamlpp: true            # learn per-step/per-param lr + wd
+multi_step_loss: false  # weighted per-step query loss, MAML++ schedule (paper Eq. 6); false = final step only
+msl_epochs: 30          # epochs to anneal the weights, final step only afterwards (not in the paper)
 loss: true              # learned inner loss (TSGA)
 adapter: true           # task-specific gradient adapter (TSGA)
 dim_feedforward_loss: 4       # loss-net hidden size 4 (paper Sec 3.3)
