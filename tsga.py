@@ -52,9 +52,12 @@ class Experiment(nn.Module):
 
         self.optimizer = getattr(optim, self.args.optimizer)(self.parameters(), lr=self.args.outer_lr, betas=(self.args.beta1, self.args.beta2))  # Adam (paper) or AdamW (upstream)
 
-    def adaptation(self, s_x, s_y, q_x):
+    def adaptation(self, s_x, s_y, q_x, meta_train=False):
         params = None
         pseudo = self.args.get('pseudo', 'none')
+        if not meta_train and not self.args.get('pseudo_at_test', True):
+            pseudo = 'none'  # pseudo-anomalies only shape meta-training; adapt on the plain support at val/test
+        w = self.args.get('pseudo_weight', 1.0)  # 0 = no pseudo term, 1 = equal weight with the normals
         n_normal = s_x.shape[0]
         if pseudo != 'none':
             # two-class support: K normals (label 0) + K pseudo-anomalies made from them (label 1)
@@ -66,7 +69,11 @@ class Experiment(nn.Module):
             if self.args.loss:
                 inner_loss = self.loss(s_p[:n_normal])  # learned label-free loss on the real normals
                 if pseudo != 'none':
-                    inner_loss = inner_loss + F.cross_entropy(s_p, s_y)
+                    inner_loss = inner_loss + w * F.cross_entropy(s_p, s_y)
+            elif pseudo != 'none':
+                # (CE_normal + w * CE_pseudo) / (1 + w): w=1 is plain CE over the two-class set, w=0 is OC-MAML
+                ce = F.cross_entropy(s_p, s_y, reduction='none')
+                inner_loss = (ce[:n_normal].mean() + w * ce[n_normal:].mean()) / (1 + w)
             else:
                 inner_loss = F.cross_entropy(s_p, s_y)
             if self.args.adapter:
@@ -86,7 +93,7 @@ class Experiment(nn.Module):
             outer_loss = torch.tensor(0., device=self.device)
             for task_idx, (s_x, s_y, q_x, q_y) in enumerate(zip(support_X, support_y, query_X, query_y)):
                 self.model.zero_grad()
-                preds = self.adaptation(s_x, s_y, q_x)
+                preds = self.adaptation(s_x, s_y, q_x, meta_train=True)
                 with torch.no_grad():
                     _, p = torch.max(preds, dim=-1)
                     accs.append(torch.mean(p.eq(q_y).float()))  # accuracy of a task

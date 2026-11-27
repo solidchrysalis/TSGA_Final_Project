@@ -20,6 +20,8 @@ mamlpp: true            # learn per-step/per-param lr + wd
 loss: true              # learned inner loss (TSGA)
 adapter: true           # task-specific gradient adapter (TSGA)
 pseudo: none            # pseudo-anomalies in the inner loop (our contribution): none | cutpaste | shuffle | mix
+pseudo_at_test: true    # false: use pseudo-anomalies during meta-training only
+pseudo_weight: 1.0      # weight of the pseudo-anomaly term (0 = off, 1 = equal to the normals)
 dim_feedforward_loss: 4       # loss-net hidden size 4 (paper Sec 3.3)
 dim_feedforward_adapter: 32   # (guess)
 num_layers_adapter: 1         # (guess)

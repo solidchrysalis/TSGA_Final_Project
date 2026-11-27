@@ -1,0 +1,16 @@
+# name | Hydra overrides   Follow-ups to sweep_pseudo.txt (pseudo=mix gave no gain), all at K=2 on FC100 and CUB.
+# 1) augmentation kind alone (OC-MAML, where mix hurt most and the inner loss is pure cross-entropy)
+fc-ocmaml-cp-k2        | dataset=FC n_support=2 pseudo=cutpaste loss=false adapter=false mamlpp=false
+cub-ocmaml-cp-k2       | dataset=CUB image_height=84 image_width=84 n_support=2 pseudo=cutpaste loss=false adapter=false mamlpp=false
+fc-ocmaml-sh-k2        | dataset=FC n_support=2 pseudo=shuffle loss=false adapter=false mamlpp=false
+cub-ocmaml-sh-k2       | dataset=CUB image_height=84 image_width=84 n_support=2 pseudo=shuffle loss=false adapter=false mamlpp=false
+# 2) pseudo-anomalies during meta-training only
+fc-tsga-mixtr-k2       | dataset=FC n_support=2 pseudo=mix pseudo_at_test=false
+cub-tsga-mixtr-k2      | dataset=CUB image_height=84 image_width=84 n_support=2 pseudo=mix pseudo_at_test=false
+fc-ocmaml-mixtr-k2     | dataset=FC n_support=2 pseudo=mix pseudo_at_test=false loss=false adapter=false mamlpp=false
+cub-ocmaml-mixtr-k2    | dataset=CUB image_height=84 image_width=84 n_support=2 pseudo=mix pseudo_at_test=false loss=false adapter=false mamlpp=false
+# 3) down-weighted pseudo-anomaly loss
+fc-tsga-mixw25-k2      | dataset=FC n_support=2 pseudo=mix pseudo_weight=0.25
+cub-tsga-mixw25-k2     | dataset=CUB image_height=84 image_width=84 n_support=2 pseudo=mix pseudo_weight=0.25
+fc-ocmaml-mixw25-k2    | dataset=FC n_support=2 pseudo=mix pseudo_weight=0.25 loss=false adapter=false mamlpp=false
+cub-ocmaml-mixw25-k2   | dataset=CUB image_height=84 image_width=84 n_support=2 pseudo=mix pseudo_weight=0.25 loss=false adapter=false mamlpp=false
